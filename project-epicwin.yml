@@ -1,0 +1,58 @@
+name: TrackOSCEpicWin
+options:
+  deploymentTarget:
+    iOS: "18.0"
+  createIntermediateGroups: true
+packages:
+  swift-osc:
+    url: https://github.com/orchetect/swift-osc
+    exactVersion: 3.1.0
+  PoseioscShared:
+    path: PoseioscShared
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    CODE_SIGN_STYLE: Automatic
+    DEVELOPMENT_TEAM: ""
+    MARKETING_VERSION: "1.9.0"
+    CURRENT_PROJECT_VERSION: "1"
+targets:
+  TrackOSCEpicWin:
+    type: application
+    platform: iOS
+    sources: [Sender, SenderCore]
+    dependencies:
+      - package: swift-osc
+        product: SwiftOSC
+      - package: PoseioscShared
+        product: PoseioscShared
+    info:
+      path: Sender/Info.plist
+      properties:
+        CFBundleDisplayName: TrackOSC EpicWin
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        ITSAppUsesNonExemptEncryption: false
+        NSCameraUsageDescription: "Analyse body movement on this iPhone and send joint coordinates to the EpicWin game. No video is sent."
+        NSLocalNetworkUsageDescription: "Send OSC tracking coordinates to the game on your local network."
+        NSBonjourServices: ["_osc._udp"]
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        UIRequiresFullScreen: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: pl.epicwin.trackosc.wide
+        PRODUCT_NAME: TrackOSCEpicWin
+        TARGETED_DEVICE_FAMILY: "1"
+        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+schemes:
+  TrackOSCEpicWin:
+    build:
+      targets:
+        TrackOSCEpicWin: all
+    run:
+      config: Debug

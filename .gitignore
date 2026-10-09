@@ -1,0 +1,8 @@
+upstream/
+github-upload/
+derived/
+artifacts/
+__pycache__/
+*.ipa
+*.p12
+*.mobileprovision

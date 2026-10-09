@@ -1,0 +1,99 @@
+name: Build TrackOSC EpicWin IPA
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-26
+    timeout-minutes: 35
+    steps:
+      - name: Checkout build kit
+        uses: actions/checkout@v4
+
+      - name: Python for reproducible patch tests
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Checkout pinned TrackOSC source
+        shell: bash
+        run: |
+          set -euo pipefail
+          revision="$(tr -d '\r\n' < UPSTREAM-REVISION.txt)"
+          [[ "$revision" =~ ^[0-9a-f]{40}$ ]]
+          git clone --filter=blob:none https://github.com/JGL/TrackOSC.git upstream
+          git -C upstream checkout --detach "$revision"
+          test "$(git -C upstream rev-parse HEAD)" = "$revision"
+
+      - name: Test and apply changes
+        run: |
+          python3 -m unittest discover -s tests -v
+          python3 apply_patch.py upstream
+
+      - name: Generate iOS-only Xcode project
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcodebuild -version
+          if ! command -v xcodegen >/dev/null; then brew install xcodegen; fi
+          cd upstream
+          xcodegen generate --spec project-epicwin.yml
+
+      - name: Build for physical iPhone without signing
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          xcodebuild \
+            -project upstream/TrackOSCEpicWin.xcodeproj \
+            -scheme TrackOSCEpicWin -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath "$PWD/derived" \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
+            build 2>&1 | tee artifacts/xcodebuild.log
+
+      - name: Package unsigned IPA and provenance
+        shell: bash
+        run: |
+          set -euo pipefail
+          app="$PWD/derived/Build/Products/Release-iphoneos/TrackOSCEpicWin.app"
+          test -d "$app"
+          test -f "$app/TrackOSCEpicWin"
+          mkdir -p artifacts/Payload
+          ditto "$app" artifacts/Payload/TrackOSCEpicWin.app
+          cp LICENSE-TrackOSC.txt artifacts/
+          cp upstream/EPICWIN-PATCH.json artifacts/
+          cp 00-START-TUTAJ.md artifacts/
+          cd artifacts
+          /usr/bin/zip -qry TrackOSC-EpicWin-unsigned.ipa Payload
+          shasum -a 256 TrackOSC-EpicWin-unsigned.ipa > SHA256.txt
+          echo 'IPA is UNSIGNED: install and sign with AltStore Classic on Windows.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'No Apple credentials or certificates were used by this workflow.' >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Downloadable IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: TrackOSC-EpicWin-iPhone
+          path: |
+            artifacts/TrackOSC-EpicWin-unsigned.ipa
+            artifacts/SHA256.txt
+            artifacts/EPICWIN-PATCH.json
+            artifacts/LICENSE-TrackOSC.txt
+            artifacts/00-START-TUTAJ.md
+          retention-days: 14
+          if-no-files-found: error
+
+      - name: Build diagnostics (also on failure)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: TrackOSC-EpicWin-build-diagnostics
+          path: |
+            artifacts/xcodebuild.log
+            upstream/EPICWIN-PATCH.json
+          retention-days: 14
+          if-no-files-found: ignore
